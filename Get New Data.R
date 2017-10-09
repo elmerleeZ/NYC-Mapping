@@ -15,12 +15,39 @@ library(acsplus)
 library(dplyr)
 library(readxl)
 
+install.packages("devtools")
+library(devtools)
+install_github("walkerke/tidycensus")
+
+
+install.packages("tidycensus")
+library(tidycensus)
+
 api.key.install(key = "1d9149a1d6d2eb5c7cfbc7dd7c74d092c415a8a8")
+census_api_key("1d9149a1d6d2eb5c7cfbc7dd7c74d092c415a8a8", install = T)
+
+
+########################################################################
+## Try tidycensus  ##
+
+income <- get_acs(geography = "place", variables = "B19013_001", survey = "acs1", endyear = 2010)
+  # works for year 2012-2016, fail for year 2010 - 2011
+
+variables <- c(
+  acs_vars("B01003",1), # Total Population
+  acs_vars("B19013",1), # Median Household Income in past 12 months
+  # acs_vars("B11001",1), # Household
+  acs_vars("B25003",1:3) # Household, Owner Occupied Renter Occupied
+)
+
+for(i in 2010:2016) {
+    acs_raw <- get_acs(geography = 'public use microdata area', state = '36', variables = variables, survey = "acs1", endyear = i)
+    assign("acs_raw_" %S% i,acs_raw)
+}
 
 
 ########################################################################
 ## Set up geography variables  ##
-
 
 # nyc_tracts <- geo.make(state = "NY", county = c(5, 47, 61, 81, 85), tract = "*")
 ny_puma <- geo.make(state = "NY", puma = "*")
@@ -29,7 +56,9 @@ variables <- c(
   acs_vars("B01003",1), # Total Population
   acs_vars("B19013",1), # Median Household Income in past 12 months
   # acs_vars("B11001",1), # Household
-  acs_vars("B25003",1:3) # Household, Owner Occupied Renter Occupied
+  acs_vars("B25003",1:3), # Household, Owner Occupied Renter Occupied
+  acs_vars("B25064",1) # Median Gross Rent
+  # acs_vars("B25031",4:5) # Median Gross Rent 3 & 4 bedrooms
 )
 
 
@@ -54,9 +83,15 @@ acs_B25003_2011 <- read.csv("/Users/zongyangli/Google Drive/Job/RA - Public Good
 acs_B25003_2010 <- read.csv("/Users/zongyangli/Google Drive/Job/RA - Public Good/Public Good Code_Resources - Copy/Data/ACS/ACS_10_1YR_B25003_with_ann.csv") %>% filter(GEO.id != 'Id') %>% mutate(B25003e001 = HD01_VD01,B25003e002 = HD01_VD02,B25003e003 = HD01_VD03, year = 2010) %>% select(GEO.id2,year,B25003e001,B25003e002,B25003e003)
 acs_B25003 <- Reduce(function(x, y) merge(x, y, by=c('GEO.id2','year','B25003e001','B25003e002','B25003e003'), all=TRUE), list(acs_B25003_2016, acs_B25003_2011, acs_B25003_2010))
 
+acs_B25064_2016 <- get_acs(geography = 'public use microdata area', state = '36', variables = 'B25064_001', survey = "acs1", endyear = 2016) %>% mutate(GEO.id2 = GEOID, B25064e001 = estimate, year = 2016) %>% select(GEO.id2,year,B25064e001)
+acs_B25064_2011 <- read.csv("/Users/zongyangli/Google Drive/Job/RA - Public Good/Public Good Code_Resources - Copy/Data/ACS/ACS_11_1YR_B25064_with_ann.csv") %>% filter(GEO.id != 'Id') %>% mutate(B25064e001 = HD01_VD01, year = 2011) %>% select(GEO.id2,year,B25064e001)
+acs_B25064_2010 <- read.csv("/Users/zongyangli/Google Drive/Job/RA - Public Good/Public Good Code_Resources - Copy/Data/ACS/ACS_10_1YR_B25064_with_ann.csv") %>% filter(GEO.id != 'Id') %>% mutate(B25064e001 = HD01_VD01, year = 2010) %>% select(GEO.id2,year,B25064e001)
+acs_B25064 <- Reduce(function(x, y) merge(x, y, by=c('GEO.id2','year','B25064e001'), all=TRUE), list(acs_B25064_2016, acs_B25064_2011, acs_B25064_2010))
 
-acs_raw_2 <- Reduce(function(x, y) merge(x, y, by=c('GEO.id2','year'), all=TRUE), list(acs_B01003,acs_B19013,acs_B25003)) %>%
+
+acs_raw_2 <- Reduce(function(x, y) merge(x, y, by=c('GEO.id2','year'), all=TRUE), list(acs_B01003,acs_B19013,acs_B25003,acs_B25064)) %>%
     mutate(end_year = year,geoid = GEO.id2) %>% select(-year,-GEO.id2)
+
 
 
 ########################################################################
@@ -76,7 +111,7 @@ geo_name <- read.csv("/Users/zongyangli/Google Drive/Job/RA - Public Good/Public
 
 
 ## Merge all together
-acs_raw <- Reduce(function(x, y) merge(x, y, by=c('geoid','end_year',"B01003e001","B19013e001","B25003e001","B25003e002","B25003e003"), all=TRUE), list(acs_raw_1,acs_raw_2)) %>%
+acs_raw <- Reduce(function(x, y) merge(x, y, by=c('geoid','end_year',"B01003e001","B19013e001","B25003e001","B25003e002","B25003e003","B25064e001"), all=TRUE), list(acs_raw_1,acs_raw_2)) %>%
     select(-geo_name) %>% left_join(geo_name, by = 'geoid')
 
 
@@ -88,11 +123,12 @@ acs_clean <- acs_raw %>%
            hhinc_med = as.numeric(B19013e001),
            tot_hhd = as.numeric(B25003e001),
            hhd_owner = as.numeric(B25003e002),
-           hhd_renter = as.numeric(B25003e003)) %>%
+           hhd_renter = as.numeric(B25003e003),
+           rent_median = as.numeric(B25064e001)) %>%
     filter(puma %in% c(
         '04001', '04002', '04003', '04004', '04005', '04006', '04011', '04012', '04014', '04015'
       )) %>%
-    select(geoid,puma,year,neighborhood,tot_pop,hhinc_med,tot_hhd,hhd_owner,hhd_renter) %>%
+    select(geoid,puma,year,neighborhood,tot_pop,hhinc_med,tot_hhd,hhd_owner,hhd_renter,rent_median) %>%
     mutate(pct_owner = hhd_owner/tot_hhd,pct_renter = hhd_renter/tot_hhd)
 
 
@@ -120,7 +156,7 @@ hh_price_med <- hh_price_med_raw %>%
       ) %>%
     select(-boro,-suboro,-boro_code) %>%
     select(puma,neighborhood,everything()) %>%
-    gather(`2000`,`2001`,`2002`,`2003`, `2004`, `2005`, `2006`, `2007`, `2008`, `2009`, `2010`, `2011`, `2012`, `2013`, `2014`, `2015`,`2016`, key = "year", value = "hh_price_med") %>%
+    gather(`2000`,`2001`,`2002`,`2003`, `2004`, `2005`, `2006`, `2007`, `2008`, `2009`, `2010`, `2011`, `2012`, `2010`, `2014`, `2015`,`2016`, key = "year", value = "hh_price_med") %>%
     select(puma,year,hh_price_med)
 
 
@@ -133,15 +169,16 @@ uja_demo_raw <- acs_clean %>% left_join(hh_price_med,by = c("puma", "year"))
 base <- uja_demo_raw %>% 
     filter(year == 2010) %>%
     mutate(
-      tot_pop_2013 = tot_pop,
-      tot_hhd_2013 = tot_hhd,
-      hhinc_med_2013 = hhinc_med,
-      hhinc_med_2013 = hhinc_med,
-      pct_owner_2013 = pct_owner,
-      pct_renter_2013 = pct_renter,
-      hh_price_med_2013 = hh_price_med
+      tot_pop_2010 = tot_pop,
+      tot_hhd_2010 = tot_hhd,
+      hhinc_med_2010 = hhinc_med,
+      hhinc_med_2010 = hhinc_med,
+      pct_owner_2010 = pct_owner,
+      pct_renter_2010 = pct_renter,
+      hh_price_med_2010 = hh_price_med,
+      rent_median_2010 = rent_median
       ) %>% 
-    select(-tot_pop,-hhinc_med,-hhinc_med,-pct_owner,-pct_renter,-hh_price_med,-year,-neighborhood,-tot_hhd,-hhd_owner,-hhd_renter)
+    select(-tot_pop,-hhinc_med,-hhinc_med,-pct_owner,-pct_renter,-hh_price_med,-year,-neighborhood,-tot_hhd,-hhd_owner,-hhd_renter,-rent_median)
 
 
 
@@ -156,15 +193,16 @@ base <- read.csv("base.csv") %>% mutate(puma = str_pad(puma, 5, pad = "0")) %>% 
 uja_demo <- uja_demo_raw %>% 
     left_join(base, by = c('puma','geoid')) %>%
     mutate(
-      pct_chg_tot_pop = (as.numeric(tot_pop)/ as.numeric(tot_pop_2013))*100 - 100,
-      pct_chg_tot_hhd = (as.numeric(tot_hhd)/ as.numeric(tot_hhd_2013))*100 - 100,
-      pct_chg_hhinc_med = (as.numeric(hhinc_med)/as.numeric(hhinc_med_2013))*100 - 100,
-      pct_chg_hhinc_med = (as.numeric(hhinc_med)/as.numeric(hhinc_med_2013))*100 - 100,
-      pct_chg_pct_owner = (as.numeric(pct_owner)/as.numeric(pct_owner_2013))*100 - 100,
-      pct_chg_pct_renter = (as.numeric(pct_renter)/as.numeric(pct_renter_2013))*100 - 100,
-      pct_chg_hh_price_med = (as.numeric(hh_price_med)/as.numeric(hh_price_med_2013))*100 - 100
+      pct_chg_tot_pop = (as.numeric(tot_pop)/ as.numeric(tot_pop_2010))*100 - 100,
+      pct_chg_tot_hhd = (as.numeric(tot_hhd)/ as.numeric(tot_hhd_2010))*100 - 100,
+      pct_chg_hhinc_med = (as.numeric(hhinc_med)/as.numeric(hhinc_med_2010))*100 - 100,
+      pct_chg_hhinc_med = (as.numeric(hhinc_med)/as.numeric(hhinc_med_2010))*100 - 100,
+      pct_chg_pct_owner = (as.numeric(pct_owner)/as.numeric(pct_owner_2010))*100 - 100,
+      pct_chg_pct_renter = (as.numeric(pct_renter)/as.numeric(pct_renter_2010))*100 - 100,
+      pct_chg_hh_price_med = (as.numeric(hh_price_med)/as.numeric(hh_price_med_2010))*100 - 100,
+      pct_chg_rent_median = (as.numeric(rent_median)/as.numeric(rent_median_2010))*100 - 100
       ) %>%
-    select(-tot_pop_2013,-tot_hhd_2013,-hhinc_med_2013,-hhinc_med_2013,-pct_owner_2013,-pct_renter_2013,-hh_price_med_2013)
+    select(-tot_pop_2010,-tot_hhd_2010,-hhinc_med_2010,-hhinc_med_2010,-pct_owner_2010,-pct_renter_2010,-hh_price_med_2010,rent_median_2010)
 
 
 setwd('/Users/zongyangli/Google Drive/Job/RA - Public Good/Output')
