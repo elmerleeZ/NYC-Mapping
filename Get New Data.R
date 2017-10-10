@@ -202,7 +202,7 @@ uja_demo <- uja_demo_raw %>%
       pct_chg_hh_price_med = (as.numeric(hh_price_med)/as.numeric(hh_price_med_2010))*100 - 100,
       pct_chg_rent_median = (as.numeric(rent_median)/as.numeric(rent_median_2010))*100 - 100
       ) %>%
-    select(-tot_pop_2010,-tot_hhd_2010,-hhinc_med_2010,-hhinc_med_2010,-pct_owner_2010,-pct_renter_2010,-hh_price_med_2010,rent_median_2010)
+    select(-tot_pop_2010,-tot_hhd_2010,-hhinc_med_2010,-hhinc_med_2010,-pct_owner_2010,-pct_renter_2010,-hh_price_med_2010,-rent_median_2010)
 
 
 setwd('/Users/zongyangli/Google Drive/Job/RA - Public Good/Output')
