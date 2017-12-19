@@ -83,7 +83,7 @@ tm_plot <- function(tract,var){
                 main.title.size = 1.8, fontfamily = "sans", main.title.position = 0.13)
 }
 
-tm_plot(tract,'tot_pop') # (8.71*4.54 inch)
+tm_plot(tract,'tot_pop') # (8.71*5.54 inch)
 tm_plot(tract,'tot_hh') 
 
 
