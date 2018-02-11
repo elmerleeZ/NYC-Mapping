@@ -1,0 +1,12 @@
+name: UJA_Brooklyn_Map
+title: UJA_Brooklyn_Map
+username:
+account: elmer-zongyang-li
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 257192
+bundleId: 1177865
+url: https://elmer-zongyang-li.shinyapps.io/UJA_Brooklyn_Map/
+when: 1516078231.25981
+asMultiple: FALSE
+asStatic: FALSE
